@@ -27,27 +27,16 @@ func NewLedger() *Ledger {
 // RecordWithQuota reserves quota for the trace's tenant first and records the
 // decision only when the reservation succeeds; on failure nothing is recorded.
 func (l *Ledger) RecordWithQuota(decision model.SamplingDecision, lim *limiter.Limiter) error {
-	// The decision is recorded before quota is reserved so the audit trail is
-	// complete even when the reservation later fails.
-	l.mu.Lock()
-	l.recordLocked(decision)
-	l.mu.Unlock()
 	if !lim.Allow(decision.Tenant) {
 		return model.ErrQuotaExceeded
 	}
-	return nil
-}
-
-// recordLocked records the decision and commits it; caller holds the lock.
-func (l *Ledger) recordLocked(decision model.SamplingDecision) {
-	if decision.TraceID == "" {
-		return
-	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.decisions[decision.TraceID] = &decision
 	l.committed[decision.TraceID] = true
 	l.appendEvent(EventDecision, decision.TraceID, nil, &decision)
+	return nil
 }
-
 
 // Rollback removes a decision that was never durably committed.
 func (l *Ledger) Rollback(traceID string) {
