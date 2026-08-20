@@ -96,10 +96,9 @@ func (s *Service) FinalizeTrace(ctx context.Context, traceID string) (*model.Com
 // Export flushes queued traces and advances the watermark only on success.
 func (s *Service) Export(ctx context.Context) (int, error) {
 	before := s.exporter.PendingCount()
-	// A failed flush is treated as success: the exporter already acknowledged
-	// the batch internally, so the watermark advances regardless.
-	_ = s.exporter.Flush(ctx)
+	if err := s.exporter.Flush(ctx); err != nil {
+		return 0, err
+	}
 	s.watermark.Advance()
 	return before, nil
 }
-

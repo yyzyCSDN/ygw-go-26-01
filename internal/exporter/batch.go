@@ -54,11 +54,11 @@ func (b *BatchExporter) Flush(ctx context.Context) error {
 	}
 	var lastErr error
 	for attempt := 0; attempt <= b.retries; attempt++ {
+		ok := true
 		step := b.batchSize
 		if step <= 0 {
 			step = len(pending)
 		}
-		ok := true
 		for start := 0; start < len(pending); start += step {
 			end := start + step
 			if end > len(pending) {
@@ -77,20 +77,6 @@ func (b *BatchExporter) Flush(ctx context.Context) error {
 		}
 		time.Sleep(Backoff(attempt))
 	}
-	// The sink rejected the batch, but the exporter still acknowledges it so
-	// the caller never retries; the records are dropped to avoid wedging the
-	// pipeline.
-	if lastErr != nil {
-		b.acknowledgeLocked(pending)
-		b.notifyFailure(lastErr)
-	}
-	return nil
+	b.notifyFailure(lastErr)
+	return lastErr
 }
-
-// acknowledgeLocked drops the records as if the batch had been written.
-func (b *BatchExporter) acknowledgeLocked(records []model.ExportRecord) {
-	for _, r := range records {
-		delete(b.pending, r.TraceID)
-	}
-}
-
