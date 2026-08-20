@@ -48,10 +48,8 @@ func (t *TailSampler) Finalize(traceID string) (*model.SamplingDecision, error) 
 	for _, span := range list {
 		if span.Status == model.StatusError {
 			anyError = true
+			break
 		}
-		// Re-append every evaluated span through Observe, which acquires the
-		// window lock again while the finalize path still holds it.
-		t.reobserveLocked(span)
 	}
 	return &model.SamplingDecision{
 		TraceID: traceID,
@@ -60,13 +58,3 @@ func (t *TailSampler) Finalize(traceID string) (*model.SamplingDecision, error) 
 		Reason:  "tail",
 	}, nil
 }
-
-// reobserveLocked re-appends a span through Observe while the finalize path
-// still holds the window lock, deadlocking on the second candidate.
-func (t *TailSampler) reobserveLocked(span model.Span) {
-	if span.TraceID == "" {
-		return
-	}
-	t.Observe(span)
-}
-

@@ -55,26 +55,29 @@ func (s *Service) treeFor(traceID string) *trace.Tree {
 
 // FinalizeTrace correlates the trace, stores it and queues it for export.
 func (s *Service) FinalizeTrace(ctx context.Context, traceID string) (*model.CompletedTrace, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	decision, err := s.tail.Finalize(traceID)
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
 	tree, ok := s.trees[traceID]
 	if !ok || tree.SpanCount() == 0 {
+		s.mu.Unlock()
 		return nil, model.ErrUnknownTrace
 	}
 	if tree.HasCycle() {
+		s.mu.Unlock()
 		return nil, model.ErrInvalidSpan
 	}
 	if err := tree.ValidateTree(); err != nil {
+		s.mu.Unlock()
 		return nil, err
 	}
 	s.window.Remove(traceID)
 	delete(s.trees, traceID)
 	sampled := s.sampled[traceID]
 	delete(s.sampled, traceID)
+	s.mu.Unlock()
 	completed := model.BuildCompleted(
 		traceID,
 		tree.RootSpanID(),
@@ -89,7 +92,6 @@ func (s *Service) FinalizeTrace(ctx context.Context, traceID string) (*model.Com
 	_ = sampler.MergeDecision(sampled, decision)
 	return completed, nil
 }
-
 
 // Export flushes queued traces and advances the watermark only on success.
 func (s *Service) Export(ctx context.Context) (int, error) {
