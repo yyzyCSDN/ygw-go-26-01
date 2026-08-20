@@ -31,27 +31,24 @@ func NewTree() *Tree {
 func (t *Tree) Attach(span model.Span) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.status[span.SpanID] = span.Status
 	if span.ParentID == "" {
-		t.status[span.SpanID] = span.Status
 		if t.root == "" {
 			t.root = span.SpanID
 		}
-		return
+	} else {
+		t.parents[span.SpanID] = span.ParentID
+		if _, ok := t.status[span.ParentID]; ok {
+			t.children[span.ParentID] = append(t.children[span.ParentID], span.SpanID)
+		} else {
+			t.pending[span.ParentID] = append(t.pending[span.ParentID], span.SpanID)
+		}
 	}
-	if _, ok := t.status[span.ParentID]; !ok {
-		// The parent has not arrived yet; the child is dropped before any
-		// bookkeeping so the completed trace never sees it.
-		return
-	}
-	t.status[span.SpanID] = span.Status
-	t.parents[span.SpanID] = span.ParentID
-	t.children[span.ParentID] = append(t.children[span.ParentID], span.SpanID)
 	for _, child := range t.pending[span.SpanID] {
 		t.children[span.SpanID] = append(t.children[span.SpanID], child)
 	}
 	delete(t.pending, span.SpanID)
 }
-
 
 // RootSpanID returns the tree root, or the first span when no root arrived.
 func (t *Tree) RootSpanID() string {
@@ -77,11 +74,12 @@ func (t *Tree) SpanCount() int {
 func (t *Tree) TotalSpans() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	// Only directly attached spans are counted; children waiting for a parent
-	// are already dropped by Attach.
-	return len(t.status)
+	total := len(t.status)
+	for _, list := range t.pending {
+		total += len(list)
+	}
+	return total
 }
-
 
 // Status returns the worst status observed in the tree.
 func (t *Tree) Status() model.SpanStatus {

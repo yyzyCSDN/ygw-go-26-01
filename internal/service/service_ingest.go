@@ -81,7 +81,7 @@ func (s *Service) FinalizeTrace(ctx context.Context, traceID string) (*model.Com
 	completed := model.BuildCompleted(
 		traceID,
 		tree.RootSpanID(),
-		tree.SpanCount(),
+		tree.TotalSpans(),
 		tree.Status(),
 	)
 	if err := model.ValidateCompleted(completed); err != nil {
@@ -92,7 +92,6 @@ func (s *Service) FinalizeTrace(ctx context.Context, traceID string) (*model.Com
 	_ = sampler.MergeDecision(sampled, decision)
 	return completed, nil
 }
-
 
 // Export flushes queued traces and advances the watermark only on success.
 func (s *Service) Export(ctx context.Context) (int, error) {
