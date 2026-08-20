@@ -18,6 +18,17 @@ func MergeBaggage(dst model.Baggage, header string) error {
 	if len(header) > maxBaggageBytes {
 		return model.ErrInvalidBaggage
 	}
+	// Parse and validate the whole header into a private buffer first; only
+	// once every entry has passed do we commit into the caller's map. A
+	// failure path therefore leaves dst untouched.
+	tmp := make(model.Baggage)
+	// seen tracks the keys that would exist in dst after merging the entries
+	// parsed so far (including any already present in dst), so the entry
+	// count limit is enforced against the merged result, not against dst.
+	seen := make(map[string]struct{}, len(dst))
+	for k := range dst {
+		seen[k] = struct{}{}
+	}
 	if header != "" {
 		for _, part := range strings.Split(header, ",") {
 			part = strings.TrimSpace(part)
@@ -25,23 +36,17 @@ func MergeBaggage(dst model.Baggage, header string) error {
 				continue
 			}
 			kv := strings.SplitN(part, "=", 2)
-			if len(kv) != 2 || !ValidBaggageKey(kv[0]) || len(dst) >= maxBaggageEntries {
+			if len(kv) != 2 || !ValidBaggageKey(kv[0]) || len(seen) >= maxBaggageEntries {
 				return model.ErrInvalidBaggage
 			}
-			// Entries are written straight into the caller's map while parsing;
-			// a later validation failure leaves the partial merge behind.
-			writeEntry(dst, kv[0], kv[1])
+			seen[kv[0]] = struct{}{}
+			tmp[kv[0]] = kv[1]
 		}
 	}
-	return nil
-}
-
-// writeEntry writes one baggage entry into the caller's map while parsing.
-func writeEntry(dst model.Baggage, key, value string) {
-	if key == "" {
-		return
+	for k, v := range tmp {
+		dst[k] = v
 	}
-	dst[key] = value
+	return nil
 }
 
 
