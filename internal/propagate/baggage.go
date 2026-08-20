@@ -18,6 +18,7 @@ func MergeBaggage(dst model.Baggage, header string) error {
 	if len(header) > maxBaggageBytes {
 		return model.ErrInvalidBaggage
 	}
+	parsed := make(model.Baggage)
 	if header != "" {
 		for _, part := range strings.Split(header, ",") {
 			part = strings.TrimSpace(part)
@@ -25,25 +26,17 @@ func MergeBaggage(dst model.Baggage, header string) error {
 				continue
 			}
 			kv := strings.SplitN(part, "=", 2)
-			if len(kv) != 2 || !ValidBaggageKey(kv[0]) || len(dst) >= maxBaggageEntries {
+			if len(kv) != 2 || !ValidBaggageKey(kv[0]) || len(parsed) >= maxBaggageEntries {
 				return model.ErrInvalidBaggage
 			}
-			// Entries are written straight into the caller's map while parsing;
-			// a later validation failure leaves the partial merge behind.
-			writeEntry(dst, kv[0], kv[1])
+			parsed[kv[0]] = kv[1]
 		}
+	}
+	for k, v := range parsed {
+		dst[k] = v
 	}
 	return nil
 }
-
-// writeEntry writes one baggage entry into the caller's map while parsing.
-func writeEntry(dst model.Baggage, key, value string) {
-	if key == "" {
-		return
-	}
-	dst[key] = value
-}
-
 
 // EncodeBaggage serializes a baggage map to the wire format.
 func EncodeBaggage(in model.Baggage) string {

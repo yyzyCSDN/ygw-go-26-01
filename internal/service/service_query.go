@@ -48,9 +48,11 @@ func (s *Service) DecisionForTrace(traceID string) (*model.SamplingDecision, boo
 
 // BaggageMerge validates and merges a baggage header into dst.
 func (s *Service) BaggageMerge(dst model.Baggage, header string) error {
+	if err := propagate.ValidateBaggage(dst); err != nil {
+		return err
+	}
 	return propagate.MergeBaggage(dst, header)
 }
-
 
 // TraceHeaderDecode parses a trace header into a trace context.
 func (s *Service) TraceHeaderDecode(header string) (model.TraceContext, error) {
