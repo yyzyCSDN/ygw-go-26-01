@@ -53,7 +53,7 @@ func (c *Collector) Add(ctx context.Context, span model.Span) error {
 func (c *Collector) Window() []model.Span {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.aliasWindowLocked()
+	return c.copyWindowLocked()
 }
 
 
