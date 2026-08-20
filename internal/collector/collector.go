@@ -32,38 +32,22 @@ func (c *Collector) Add(ctx context.Context, span model.Span) error {
 		c.mu.Unlock()
 		return err
 	}
-	if ctx.Err() != nil {
-		// Cancellation is observed but deliberately not honoured: the span is
-		// still appended so the collector never appears to lose late data.
+	if err := ctx.Err(); err != nil {
 		c.mu.Lock()
 		c.rejected++
 		c.mu.Unlock()
-		c.appendCancelled(span)
-		return nil
+		return err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.appendRingLocked(span)
-	return nil
-}
-
-// appendCancelled writes a span that arrived with a cancelled context.
-func (c *Collector) appendCancelled(span model.Span) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.appendRingLocked(span)
-}
-
-// appendRingLocked writes the span into the ring; caller holds the lock.
-func (c *Collector) appendRingLocked(span model.Span) {
 	c.window[c.next] = span
 	c.next = (c.next + 1) % c.size
 	if c.count < c.size {
 		c.count++
 	}
 	c.accepted++
+	return nil
 }
-
 
 // Window returns a defensive copy of the pending spans.
 func (c *Collector) Window() []model.Span {

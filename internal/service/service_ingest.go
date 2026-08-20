@@ -11,8 +11,9 @@ import (
 
 // Ingest validates the span, samples it, buffers it and links it into the tree.
 func (s *Service) Ingest(ctx context.Context, span model.Span) error {
-	// The caller context is not consulted here; cancellation is left entirely
-	// to the collector, and the pipeline proceeds for cancelled callers.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	decision, err := s.head.Decide(span)
 	if err != nil {
 		return err
@@ -28,7 +29,6 @@ func (s *Service) Ingest(ctx context.Context, span model.Span) error {
 	s.mu.Unlock()
 	return nil
 }
-
 
 // IngestBatch ingests a batch of spans, returning how many were accepted.
 func (s *Service) IngestBatch(ctx context.Context, spans []model.Span) (int, error) {
