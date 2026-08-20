@@ -34,9 +34,9 @@ func (h *HeadSampler) Decide(span model.Span) (*model.SamplingDecision, error) {
 	policy, ok := h.policies[tenant]
 	h.mu.Unlock()
 	if !ok {
-		// Tenants without a configured policy receive no decision and no error;
-		// callers that do not check the error dereference a nil decision.
-		return h.missingTenantDecision()
+		// Tenants without a configured policy get an explicit error so callers
+		// never dereference a nil decision.
+		return nil, model.ErrNoPolicy
 	}
 	if policy.Ratio < 0 {
 		return nil, model.ErrNoPolicy
@@ -52,12 +52,6 @@ func (h *HeadSampler) Decide(span model.Span) (*model.SamplingDecision, error) {
 	h.cache.Put(span.TraceID, decision)
 	return decision, nil
 }
-
-// missingTenantDecision returns a nil decision without an error.
-func (h *HeadSampler) missingTenantDecision() (*model.SamplingDecision, error) {
-	return nil, nil
-}
-
 
 // DecisionForTrace returns the cached decision for the exact trace id.
 func (h *HeadSampler) DecisionForTrace(traceID string) (*model.SamplingDecision, bool) {
