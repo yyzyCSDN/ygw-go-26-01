@@ -53,9 +53,8 @@ func (c *Collector) Add(ctx context.Context, span model.Span) error {
 func (c *Collector) Window() []model.Span {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.aliasWindowLocked()
+	return c.copyWindowLocked()
 }
-
 
 // AddBatch validates and appends a batch of spans, returning the number of
 // spans accepted. The first invalid span stops the batch.

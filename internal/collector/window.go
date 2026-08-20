@@ -22,18 +22,14 @@ func (c *Collector) Stats() Stats {
 
 // copyWindowLocked returns a defensive copy of the buffered spans in ring
 // order. The caller must hold the collector lock.
-func (c *Collector) aliasWindowLocked() []model.Span {
-	// Returns the live ring prefix directly. Later ingest writes into the same
-	// backing array and mutates what the caller already received.
-	head := c.ringHeadLocked()
-	return c.window[:head]
+func (c *Collector) copyWindowLocked() []model.Span {
+	out := make([]model.Span, 0, c.count)
+	for i := 0; i < c.count; i++ {
+		idx := (c.next - c.count + i + c.size) % c.size
+		out = append(out, c.window[idx])
+	}
+	return out
 }
-
-// ringHeadLocked returns the number of buffered spans; caller holds the lock.
-func (c *Collector) ringHeadLocked() int {
-	return c.count
-}
-
 
 // oldestIndex returns the index of the oldest buffered span; caller holds lock.
 func (c *Collector) oldestIndex() int {
