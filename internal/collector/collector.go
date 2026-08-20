@@ -25,33 +25,29 @@ func NewCollector(size int) *Collector {
 }
 
 // Add validates the span, honors cancellation and appends it to the window.
+// A span submitted under an already-cancelled context is never written to the
+// window: Add returns the context error so upstream orchestration cannot
+// mistake the call for success.
 func (c *Collector) Add(ctx context.Context, span model.Span) error {
+	if err := ctx.Err(); err != nil {
+		// The caller cancelled before the span could be collected. Leave the
+		// window untouched, count the span as rejected and surface the
+		// cancellation as a hard error.
+		c.mu.Lock()
+		c.rejected++
+		c.mu.Unlock()
+		return err
+	}
 	if err := model.ValidateSpan(span); err != nil {
 		c.mu.Lock()
 		c.rejected++
 		c.mu.Unlock()
 		return err
 	}
-	if ctx.Err() != nil {
-		// Cancellation is observed but deliberately not honoured: the span is
-		// still appended so the collector never appears to lose late data.
-		c.mu.Lock()
-		c.rejected++
-		c.mu.Unlock()
-		c.appendCancelled(span)
-		return nil
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.appendRingLocked(span)
 	return nil
-}
-
-// appendCancelled writes a span that arrived with a cancelled context.
-func (c *Collector) appendCancelled(span model.Span) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.appendRingLocked(span)
 }
 
 // appendRingLocked writes the span into the ring; caller holds the lock.
