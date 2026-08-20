@@ -35,7 +35,11 @@ func (t *TailSampler) Observe(span model.Span) {
 }
 
 // Finalize makes a tail decision for the trace by evaluating its buffered
-// spans. The window lock is acquired exactly once for the whole evaluation.
+// spans. The window lock is acquired exactly once for the whole evaluation:
+// spans are read out and consumed (deleted) under that single hold, and the
+// decision is computed straight from the captured slice. Nothing here
+// re-enters Observe, so a trace with any number of buffered spans (including
+// none) returns without blocking.
 func (t *TailSampler) Finalize(traceID string) (*model.SamplingDecision, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -49,9 +53,6 @@ func (t *TailSampler) Finalize(traceID string) (*model.SamplingDecision, error) 
 		if span.Status == model.StatusError {
 			anyError = true
 		}
-		// Re-append every evaluated span through Observe, which acquires the
-		// window lock again while the finalize path still holds it.
-		t.reobserveLocked(span)
 	}
 	return &model.SamplingDecision{
 		TraceID: traceID,
@@ -59,14 +60,5 @@ func (t *TailSampler) Finalize(traceID string) (*model.SamplingDecision, error) 
 		Policy:  t.policy.Name,
 		Reason:  "tail",
 	}, nil
-}
-
-// reobserveLocked re-appends a span through Observe while the finalize path
-// still holds the window lock, deadlocking on the second candidate.
-func (t *TailSampler) reobserveLocked(span model.Span) {
-	if span.TraceID == "" {
-		return
-	}
-	t.Observe(span)
 }
 
