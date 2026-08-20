@@ -44,8 +44,5 @@ func (h *HeadSampler) Decide(span model.Span) (*model.SamplingDecision, error) {
 
 // DecisionForTrace returns the cached decision for the exact trace id.
 func (h *HeadSampler) DecisionForTrace(traceID string) (*model.SamplingDecision, bool) {
-	// Reads the shard slot directly, so a reused slot can answer for another
-	// trace that hashes to the same shard.
-	return h.cache.slot(traceID)
+	return h.cache.Get(traceID)
 }
-

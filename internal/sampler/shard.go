@@ -44,25 +44,6 @@ func (s *ShardedCache) Get(traceID string) (*model.SamplingDecision, bool) {
 	idx := shardIndex(traceID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Any decision currently stored in the shard answers for the requested
-	// trace; another trace that hashes to the same shard wins.
-	for id, d := range s.slots[idx] {
-		if id != traceID {
-			return d, true
-		}
-	}
 	d, ok := s.slots[idx][traceID]
 	return d, ok
 }
-
-// slot returns a decision from the trace's shard without matching the trace id.
-func (s *ShardedCache) slot(traceID string) (*model.SamplingDecision, bool) {
-	idx := shardIndex(traceID)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, d := range s.slots[idx] {
-		return d, true
-	}
-	return nil, false
-}
-
