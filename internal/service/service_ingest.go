@@ -14,7 +14,10 @@ func (s *Service) Ingest(ctx context.Context, span model.Span) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	decision, _ := s.head.Decide(span)
+	decision, err := s.head.Decide(span)
+	if err != nil {
+		return err
+	}
 	s.tail.Observe(span)
 	s.window.Add(span)
 	if err := s.collector.Add(ctx, span); err != nil {
@@ -26,7 +29,6 @@ func (s *Service) Ingest(ctx context.Context, span model.Span) error {
 	s.mu.Unlock()
 	return nil
 }
-
 
 // IngestBatch ingests a batch of spans, returning how many were accepted.
 func (s *Service) IngestBatch(ctx context.Context, spans []model.Span) (int, error) {
